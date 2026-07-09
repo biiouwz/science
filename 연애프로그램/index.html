@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>옥텟연애: 전자를 부탁해</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gowun+Dodum&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="background-orbit orbit-one"></div>
+    <div class="background-orbit orbit-two"></div>
+
+    <main class="game-shell">
+        <section class="hero-panel">
+            <p class="eyebrow">Chemistry Dating Simulator</p>
+            <h1>옥텟연애</h1>
+            <p class="subtitle">대화하고, 전자를 주고받고, 안정한 결합으로 해피 엔딩을 맞이하세요.</p>
+            <div class="stage-tabs" id="stageTabs"></div>
+        </section>
+
+        <section class="game-board">
+            <article class="element-card player-card" id="playerCard"></article>
+
+            <section class="story-panel">
+                <div class="stage-heading">
+                    <span id="stageNumber"></span>
+                    <h2 id="stageTitle"></h2>
+                </div>
+                <div class="meter-row">
+                    <div>
+                        <span>호감도</span>
+                        <div class="meter">
+                            <div class="meter-fill love" id="loveMeter"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <span>위험도</span>
+                        <div class="meter">
+                            <div class="meter-fill danger" id="dangerMeter"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dialogue-box">
+                    <p class="speaker" id="speakerName"></p>
+                    <p id="dialogueText"></p>
+                </div>
+
+                <div class="choices" id="choices"></div>
+
+                <div class="result-card hidden" id="resultCard">
+                    <p class="result-label" id="resultLabel"></p>
+                    <h3 id="resultTitle"></h3>
+                    <p id="resultText"></p>
+                    <p class="science-note" id="scienceNote"></p>
+                    <button class="primary-action" id="nextButton">다음 스테이지</button>
+                </div>
+            </section>
+
+            <article class="element-card target-card" id="targetCard"></article>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

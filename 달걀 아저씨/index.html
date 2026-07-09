@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>달걀 아저씨 살리기</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <section class="home-screen" id="homeScreen">
+        <div class="home-card">
+            <p class="small-label">OLD SCIENCE NOTE</p>
+            <h1>달걀 아저씨<br />살리기</h1>
+            <button class="big-button" id="quizStartBtn">퀴즈 시작</button>
+            <p class="home-desc">
+                퀴즈를 맞혀서 달걀 아저씨를 보호할 수 있는 장비를 살 예산을 마련하세요.
+            </p>
+        </div>
+    </section>
+
+    <section class="quiz-screen hidden" id="quizScreen">
+        <div class="quiz-card">
+            <p class="small-label">PRE-LAUNCH QUIZ</p>
+            <h2>낙하 전 과학 퀴즈</h2>
+
+            <div class="quiz-progress">
+                <span id="quizNumber">1 / 5</span>
+                <span>현재 예산: <b id="quizBudgetText">60</b>원</span>
+            </div>
+
+            <p class="quiz-question" id="quizQuestion">문제</p>
+            <div class="quiz-choice-list" id="quizChoices"></div>
+        </div>
+    </section>
+
+    <main class="game hidden" id="gameScreen">
+        <section class="panel">
+            <h1 class="game-title">달걀 아저씨의<br />지상 낙하</h1>
+
+            <p class="subtitle">
+                오래된 과학 실험 노트풍 2D 물리 퍼즐 게임.
+                충격력, 운동량, 공기 저항을 이용해 달걀 아저씨를 살려내세요.
+            </p>
+
+            <div class="stage-buttons">
+                <button class="stageBtn active" data-stage="0">1교시</button>
+                <button class="stageBtn" data-stage="1">2교시</button>
+                <button class="stageBtn" data-stage="2">3교시</button>
+            </div>
+
+            <div class="info-box">
+                <strong id="stageTitle">학교 옥상 낙하</strong>
+
+                <div class="stat">
+                    <span>남은 예산</span>
+                    <b><span id="budget">60</span>원</b>
+                </div>
+
+                <div class="stat">
+                    <span>사용 금액</span>
+                    <b><span id="cost">0</span>원</b>
+                </div>
+
+                <div class="stat">
+                    <span>중력</span>
+                    <b><span id="gravityText">9.8</span> m/s²</b>
+                </div>
+
+                <div class="stat">
+                    <span>바람</span>
+                    <b><span id="windText">없음</span></b>
+                </div>
+            </div>
+
+            <p class="message" id="message">
+                1스테이지 목표: 단단함보다 충돌 시간을 늘리는 것이 중요합니다.
+            </p>
+        </section>
+
+        <section class="stage">
+            <canvas id="canvas" width="820" height="720"></canvas>
+            <div class="stamp">PHYSICS</div>
+        </section>
+
+        <aside class="setup-panel">
+            <h2>낙하 준비</h2>
+
+            <div class="items">
+                <label class="item">
+                    <input type="checkbox" class="gear" value="bubble" />
+                    <span class="item-name">뽁뽁이</span>
+                    <span class="price">15원</span>
+                    <span class="item-desc">충돌 시간을 늘려 평균 충격력을 줄입니다.</span>
+                </label>
+
+                <label class="item">
+                    <input type="checkbox" class="gear" value="sponge" />
+                    <span class="item-name">스펀지 신발</span>
+                    <span class="price">20원</span>
+                    <span class="item-desc">착지 순간을 부드럽게 만들어 충격을 완화합니다.</span>
+                </label>
+
+                <label class="item">
+                    <input type="checkbox" class="gear" value="parachute" />
+                    <span class="item-name">낙하산</span>
+                    <span class="price">35원</span>
+                    <span class="item-desc">공기 저항을 키워 최종 낙하 속도를 낮춥니다.</span>
+                </label>
+
+                <label class="item">
+                    <input type="checkbox" class="gear" value="airbag" />
+                    <span class="item-name">에어백</span>
+                    <span class="price">40원</span>
+                    <span class="item-desc">충돌 직전 한 번 터져 피해를 크게 줄입니다.</span>
+                </label>
+
+                <label class="item">
+                    <input type="checkbox" class="gear" value="armor" />
+                    <span class="item-name">강철 갑옷</span>
+                    <span class="price">25원</span>
+                    <span class="item-desc">질량을 늘려 오히려 운동량과 충격량이 커집니다.</span>
+                </label>
+            </div>
+
+            <div class="controls">
+                <label>
+                    수평 발사 속도:
+                    <span id="vxText">0</span>
+                </label>
+                <input id="vx" type="range" min="-140" max="140" value="0" />
+
+                <label>
+                    낙하 시작 위치:
+                    <span id="xText">50</span>%
+                </label>
+                <input id="startX" type="range" min="10" max="90" value="50" />
+            </div>
+
+            <div class="main-buttons">
+                <button class="start" id="startBtn">낙하 시작</button>
+                <button class="reset" id="resetBtn">다시 준비</button>
+            </div>
+        </aside>
+    </main>
+
+    <section class="ending-screen hidden" id="endingScreen">
+        <div class="ending-card">
+            <p class="small-label">MISSION COMPLETE</p>
+            <h1>모든 스테이지 클리어!</h1>
+            <p class="ending-text">
+                달걀 아저씨를 구했습니다.<br />
+                이제 달걀아저씨는 당신과 친구입니다.
+            </p>
+
+            <div class="happy-egg">
+                <div class="happy-body"></div>
+                <div class="happy-face">
+                    <span class="happy-eye left"></span>
+                    <span class="happy-eye right"></span>
+                    <span class="happy-smile"></span>
+                </div>
+                <div class="happy-arm left-arm"></div>
+                <div class="happy-arm right-arm"></div>
+                <div class="happy-leg left-leg"></div>
+                <div class="happy-leg right-leg"></div>
+                <div class="friend-badge">친구!</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="warning-overlay hidden" id="warningOverlay">
+        <div class="warning-card">
+            <p class="warning-label" id="warningLabel">주의</p>
+            <strong id="warningText">3</strong>
+            <p class="warning-desc" id="warningDesc"></p>
+
+            <button class="hidden" id="closeWarningBtn">확인</button>
+            <button class="hidden" id="nextQuizBtn">다음 퀴즈로 넘어가기</button>
+            <button class="hidden" id="goGameBtn">달걀 아저씨 살리러 가기</button>
+            <button class="hidden" id="nextStageBtn">다음 스테이지로 넘어가기</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
