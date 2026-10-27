@@ -17,6 +17,7 @@ const closeWarningBtn = document.getElementById("closeWarningBtn");
 const nextQuizBtn = document.getElementById("nextQuizBtn");
 const goGameBtn = document.getElementById("goGameBtn");
 const nextStageBtn = document.getElementById("nextStageBtn");
+const retryChallengeBtn = document.getElementById("retryChallengeBtn");
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -30,6 +31,8 @@ const gravityText = document.getElementById("gravityText");
 const windText = document.getElementById("windText");
 const stageTitle = document.getElementById("stageTitle");
 const message = document.getElementById("message");
+const stageHint = document.getElementById("stageHint");
+const itemHint = document.getElementById("itemHint");
 
 const vxSlider = document.getElementById("vx");
 const startXSlider = document.getElementById("startX");
@@ -123,6 +126,7 @@ const itemData = {
     airbag: { cost: 40, mass: 0.2, drag: 0.03, impactTime: 0.9 },
     armor: { cost: 25, mass: 2.8, drag: 0.005, impactTime: -0.08 }
 };
+const MIN_ITEM_COST = Math.min(...Object.values(itemData).map((item) => item.cost));
 
 const stages = [
     {
@@ -134,6 +138,7 @@ const stages = [
         durability: 72,
         intro: "1스테이지 목표: 단단함보다 충돌 시간을 늘리는 것이 중요합니다.",
         hint: "힌트: 강철 갑옷은 질량을 키워 운동량을 증가시킵니다.",
+        itemHint: "장비 힌트: 뽁뽁이와 스펀지 신발은 충돌 시간을 늘려 충격을 줄여줍니다.",
         clearReason:
             "정답인 이유: 뽁뽁이와 스펀지 신발은 충돌 시간을 늘려줍니다. 충격량이 비슷할 때 충돌 시간이 길어지면 평균 충격력이 작아져 달걀이 깨지지 않습니다."
     },
@@ -146,6 +151,7 @@ const stages = [
         durability: 62,
         intro: "2스테이지 목표: 낙하산으로 속도를 줄이고 바람을 계산하세요.",
         hint: "힌트: 바람이 오른쪽으로 밀기 때문에 수평 발사 속도를 왼쪽으로 조절해보세요.",
+        itemHint: "장비 힌트: 낙하산은 공기 저항을 크게 만들어 낙하 속도를 낮춥니다.",
         clearReason:
             "정답인 이유: 낙하산은 공기 저항을 크게 만들어 낙하 속도를 줄입니다. 또한 강풍이 오른쪽으로 밀기 때문에 수평 속도와 시작 위치를 조절해야 과녁에 도착할 수 있습니다."
     },
@@ -158,6 +164,7 @@ const stages = [
         durability: 999,
         intro: "3스테이지 목표: 중력이 거의 없으면 낙하 자체가 이상해집니다.",
         hint: "힌트: 중력이 거의 없으면 강한 충돌도 거의 일어나지 않습니다.",
+        itemHint: "장비 힌트: 우주에는 공기가 거의 없어 낙하산 효과가 작습니다. 장비 없이도 도전해보세요.",
         clearReason:
             "핵심 개념: 중력이 거의 없으면 아래로 떨어지는 낙하 운동 자체가 잘 일어나지 않습니다. 그래서 뭘 장착하든 달걀 아저씨는 크게 충돌하지 않고 둥둥 떠다니며 성공합니다."
     }
@@ -173,6 +180,7 @@ let egg;
 let running = false;
 let finished = false;
 let lastTime = 0;
+let countdownActive = false;
 
 function hideAllScreens() {
     homeScreen.classList.add("hidden");
@@ -191,6 +199,7 @@ function showOverlay(label, text, desc = "") {
     nextQuizBtn.classList.add("hidden");
     goGameBtn.classList.add("hidden");
     nextStageBtn.classList.add("hidden");
+    retryChallengeBtn.classList.add("hidden");
 }
 
 function hideOverlay() {
@@ -360,24 +369,27 @@ function resetEgg() {
 
 function updateUI() {
     const stage = stages[currentStage];
-    const currentCost = clearedStages[currentStage] ? 0 : totalCost();
-    const totalUsed = spentBudget + currentCost;
-    const remainingBudget = gameBudget - totalUsed;
+    const selectedCost = totalCost();
+    const actualRemainingBudget = gameBudget - spentBudget;
+    const previewRemainingBudget = actualRemainingBudget - selectedCost;
 
-    budgetEl.textContent = remainingBudget;
-    costEl.textContent = totalUsed;
+    // Show the next launch cost immediately while the player selects equipment.
+    budgetEl.textContent = previewRemainingBudget;
+    costEl.textContent = spentBudget + selectedCost;
     gravityText.textContent = stage.gravity;
     windText.textContent = stage.wind === 0 ? "없음" : `→ ${Math.abs(stage.wind)}`;
     stageTitle.textContent = stage.title;
+    stageHint.textContent = stage.hint;
+    itemHint.textContent = stage.itemHint;
     vxText.textContent = vxSlider.value;
     xText.textContent = startXSlider.value;
 
-    if (remainingBudget < 0) {
-        message.textContent = `예산 초과입니다. ${Math.abs(remainingBudget)}원을 줄여야 출발할 수 있습니다.`;
+    if (selectedCost > actualRemainingBudget) {
+        message.textContent = `이번 낙하 장비는 ${selectedCost}원입니다. ${selectedCost - actualRemainingBudget}원을 줄여야 출발할 수 있습니다.`;
     } else {
         message.textContent =
             `${stage.intro}\n` +
-            `지금까지 사용한 예산: ${spentBudget}원`;
+            `이번 낙하 장비: ${selectedCost}원 / 출발 후 남은 예산: ${previewRemainingBudget}원`;
     }
 }
 
@@ -398,15 +410,30 @@ function setStage(index) {
 }
 
 function startCountdown() {
-    if (spentBudget + totalCost() > gameBudget) {
+    if (countdownActive || running) return;
+
+    const launchCost = totalCost();
+    const remainingBudget = gameBudget - spentBudget;
+
+    if (remainingBudget < MIN_ITEM_COST) {
+        showBudgetUnavailable();
+        return;
+    }
+
+    if (launchCost > remainingBudget) {
         showOverlay(
             "예산 초과",
             "출발 불가",
-            "전 스테이지에서 사용한 예산까지 포함하면 최종 예산을 초과합니다."
+            `이번 장비를 사용하려면 ${launchCost}원이 필요하지만, 남은 예산은 ${remainingBudget}원입니다.`
         );
         closeWarningBtn.classList.remove("hidden");
         return;
     }
+
+    // Every launch consumes the currently selected single-use protective gear.
+    spentBudget += launchCost;
+    countdownActive = true;
+    updateUI();
 
     let count = 3;
     showOverlay("낙하 경고", String(count), "달걀 아저씨 낙하 준비 중...");
@@ -425,6 +452,7 @@ function startCountdown() {
         }
 
         clearInterval(timer);
+        countdownActive = false;
         hideOverlay();
         startGame();
     }, 800);
@@ -436,6 +464,20 @@ function startGame() {
     finished = false;
     message.textContent = "낙하 중... 속도, 질량, 충돌 시간이 결과를 결정합니다.";
     requestAnimationFrame(loop);
+}
+
+function hasNoAffordableItems() {
+    return gameBudget - spentBudget < MIN_ITEM_COST;
+}
+
+function showBudgetUnavailable() {
+    updateUI();
+    showOverlay(
+        "예산 소진",
+        "더 이상 살 수 있는\n아이템이 없습니다",
+        `남은 예산이 ${MIN_ITEM_COST}원 미만이라 더 살 수 있는 아이템이 없습니다. 조금 더 공부하셔야겠네요! 퀴즈부터 다시 풀고 달걀 아저씨를 구해보세요.`
+    );
+    retryChallengeBtn.classList.remove("hidden");
 }
 
 function loop(time) {
@@ -493,6 +535,11 @@ function update(dt) {
 
         draw();
 
+        if (hasNoAffordableItems()) {
+            setTimeout(showBudgetUnavailable, 1000);
+            return;
+        }
+
         setTimeout(showStageClear, 1000);
         return;
     }
@@ -529,8 +576,12 @@ function finishLanding() {
             "실패: 과녁을 벗어났습니다.\n" +
             `착지 위치를 조절하세요. 현재 충격력은 약 ${impactForce.toFixed(1)}입니다.`;
 
-        showOverlay("경고", "실패\n하였습니다", "과녁에 착지하지 못했습니다.");
-        closeWarningBtn.classList.remove("hidden");
+        if (hasNoAffordableItems()) {
+            showBudgetUnavailable();
+        } else {
+            showOverlay("경고", "실패\n하였습니다", "과녁에 착지하지 못했습니다.");
+            closeWarningBtn.classList.remove("hidden");
+        }
         draw();
         return;
     }
@@ -543,8 +594,12 @@ function finishLanding() {
             `평균 충격력 ${impactForce.toFixed(1)} > 내구도 ${stage.durability}\n` +
             stage.hint;
 
-        showOverlay("경고", "실패\n하였습니다", "충격력이 달걀 껍데기의 내구도를 넘었습니다.");
-        closeWarningBtn.classList.remove("hidden");
+        if (hasNoAffordableItems()) {
+            showBudgetUnavailable();
+        } else {
+            showOverlay("경고", "실패\n하였습니다", "충격력이 달걀 껍데기의 내구도를 넘었습니다.");
+            closeWarningBtn.classList.remove("hidden");
+        }
         draw();
         return;
     }
@@ -557,23 +612,26 @@ function finishLanding() {
         "충돌 시간을 늘리거나 속도를 줄이면 충격력이 감소합니다.";
 
     draw();
+
+    if (hasNoAffordableItems()) {
+        showBudgetUnavailable();
+        return;
+    }
+
     setTimeout(showStageClear, 1000);
 }
 
 function showStageClear() {
     const stage = stages[currentStage];
 
-    if (!clearedStages[currentStage]) {
-        spentBudget += totalCost();
-        clearedStages[currentStage] = true;
-    }
+    clearedStages[currentStage] = true;
 
     updateUI();
 
     showOverlay(
         "스테이지 클리어",
         "스테이지\n클리어",
-        `${stage.clearReason}\n\n이번 스테이지 사용 예산: ${totalCost()}원\n남은 총 예산: ${gameBudget - spentBudget}원`
+        `${stage.clearReason}\n\n남은 총 예산: ${gameBudget - spentBudget}원`
     );
 
     nextStageBtn.textContent =
@@ -907,6 +965,13 @@ nextQuizBtn.addEventListener("click", goNextQuiz);
 goGameBtn.addEventListener("click", enterGame);
 nextStageBtn.addEventListener("click", goNextStage);
 closeWarningBtn.addEventListener("click", hideOverlay);
+retryChallengeBtn.addEventListener("click", () => {
+    hideOverlay();
+    setupQuizRound();
+    hideAllScreens();
+    quizScreen.classList.remove("hidden");
+    renderQuiz();
+});
 
 stageBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
