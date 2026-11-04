@@ -148,7 +148,12 @@ const stages = [
         wind: 55,
         targetXRatio: 0.72,
         targetWidth: 150,
-        durability: 62,
+        durability: 190,
+        validGearSets: [
+            ["parachute"],
+            ["parachute", "sponge"],
+            ["bubble", "parachute"]
+        ],
         intro: "2스테이지 목표: 낙하산으로 속도를 줄이고 바람을 계산하세요.",
         hint: "힌트: 바람이 오른쪽으로 밀기 때문에 수평 발사 속도를 왼쪽으로 조절해보세요.",
         itemHint: "장비 힌트: 낙하산은 공기 저항을 크게 만들어 낙하 속도를 낮춥니다.",
@@ -181,6 +186,7 @@ let running = false;
 let finished = false;
 let lastTime = 0;
 let countdownActive = false;
+let launchCostCharged = false;
 
 function hideAllScreens() {
     homeScreen.classList.add("hidden");
@@ -371,11 +377,12 @@ function updateUI() {
     const stage = stages[currentStage];
     const selectedCost = totalCost();
     const actualRemainingBudget = gameBudget - spentBudget;
-    const previewRemainingBudget = actualRemainingBudget - selectedCost;
+    const pendingCost = launchCostCharged ? 0 : selectedCost;
+    const previewRemainingBudget = actualRemainingBudget - pendingCost;
 
-    // Show the next launch cost immediately while the player selects equipment.
+    // Selected gear is shown as a pending cost until the launch charges it.
     budgetEl.textContent = previewRemainingBudget;
-    costEl.textContent = spentBudget + selectedCost;
+    costEl.textContent = spentBudget + pendingCost;
     gravityText.textContent = stage.gravity;
     windText.textContent = stage.wind === 0 ? "없음" : `→ ${Math.abs(stage.wind)}`;
     stageTitle.textContent = stage.title;
@@ -384,7 +391,7 @@ function updateUI() {
     vxText.textContent = vxSlider.value;
     xText.textContent = startXSlider.value;
 
-    if (selectedCost > actualRemainingBudget) {
+    if (!launchCostCharged && selectedCost > actualRemainingBudget) {
         message.textContent = `이번 낙하 장비는 ${selectedCost}원입니다. ${selectedCost - actualRemainingBudget}원을 줄여야 출발할 수 있습니다.`;
     } else {
         message.textContent =
@@ -395,6 +402,7 @@ function updateUI() {
 
 function setStage(index) {
     currentStage = index;
+    launchCostCharged = false;
 
     stageBtns.forEach((btn) => {
         btn.classList.toggle("active", Number(btn.dataset.stage) === index);
@@ -432,6 +440,7 @@ function startCountdown() {
 
     // Every launch consumes the currently selected single-use protective gear.
     spentBudget += launchCost;
+    launchCostCharged = true;
     countdownActive = true;
     updateUI();
 
@@ -468,6 +477,16 @@ function startGame() {
 
 function hasNoAffordableItems() {
     return gameBudget - spentBudget < MIN_ITEM_COST;
+}
+
+function hasValidGearSet(stage) {
+    if (!stage.validGearSets) return true;
+
+    const selected = selectedItems().sort();
+    return stage.validGearSets.some((gearSet) => {
+        const expected = [...gearSet].sort();
+        return selected.length === expected.length && selected.every((gear, index) => gear === expected[index]);
+    });
 }
 
 function showBudgetUnavailable() {
@@ -535,11 +554,6 @@ function update(dt) {
 
         draw();
 
-        if (hasNoAffordableItems()) {
-            setTimeout(showBudgetUnavailable, 1000);
-            return;
-        }
-
         setTimeout(showStageClear, 1000);
         return;
     }
@@ -579,7 +593,29 @@ function finishLanding() {
         if (hasNoAffordableItems()) {
             showBudgetUnavailable();
         } else {
+            launchCostCharged = false;
             showOverlay("경고", "실패\n하였습니다", "과녁에 착지하지 못했습니다.");
+            closeWarningBtn.classList.remove("hidden");
+        }
+        draw();
+        return;
+    }
+
+    if (!hasValidGearSet(stage)) {
+        egg.cracked = true;
+        message.textContent =
+            "실패: 2스테이지에는 낙하산이 반드시 필요합니다.\n" +
+            "가능한 조합: 낙하산 / 낙하산+스펀지 신발 / 낙하산+뽁뽁이";
+
+        if (hasNoAffordableItems()) {
+            showBudgetUnavailable();
+        } else {
+            launchCostCharged = false;
+            showOverlay(
+                "장비 조합 오류",
+                "다시\n준비하세요",
+                "2스테이지 정답 조합은 낙하산, 낙하산+스펀지 신발, 낙하산+뽁뽁이입니다."
+            );
             closeWarningBtn.classList.remove("hidden");
         }
         draw();
@@ -597,6 +633,7 @@ function finishLanding() {
         if (hasNoAffordableItems()) {
             showBudgetUnavailable();
         } else {
+            launchCostCharged = false;
             showOverlay("경고", "실패\n하였습니다", "충격력이 달걀 껍데기의 내구도를 넘었습니다.");
             closeWarningBtn.classList.remove("hidden");
         }
@@ -613,11 +650,6 @@ function finishLanding() {
 
     draw();
 
-    if (hasNoAffordableItems()) {
-        showBudgetUnavailable();
-        return;
-    }
-
     setTimeout(showStageClear, 1000);
 }
 
@@ -627,6 +659,7 @@ function showStageClear() {
     clearedStages[currentStage] = true;
 
     updateUI();
+    launchCostCharged = false;
 
     showOverlay(
         "스테이지 클리어",
@@ -649,6 +682,10 @@ function goNextStage() {
     }
 
     setStage(currentStage + 1);
+
+    if (hasNoAffordableItems()) {
+        showBudgetUnavailable();
+    }
 }
 
 function showEndingScreen() {
