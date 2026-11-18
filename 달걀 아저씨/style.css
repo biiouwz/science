@@ -332,7 +332,8 @@ input[type="range"] {
 .start,
 #goGameBtn,
 #nextStageBtn,
-#retryChallengeBtn {
+#retryChallengeBtn,
+#budgetQuizBtn {
     background: var(--safe);
 }
 

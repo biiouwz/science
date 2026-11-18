@@ -18,6 +18,7 @@ const nextQuizBtn = document.getElementById("nextQuizBtn");
 const goGameBtn = document.getElementById("goGameBtn");
 const nextStageBtn = document.getElementById("nextStageBtn");
 const retryChallengeBtn = document.getElementById("retryChallengeBtn");
+const budgetQuizBtn = document.getElementById("budgetQuizBtn");
 
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
@@ -187,6 +188,12 @@ let finished = false;
 let lastTime = 0;
 let countdownActive = false;
 let launchCostCharged = false;
+let quizMode = "start";
+let budgetQuizCorrectCount = 0;
+let budgetQuizLaunchApproved = false;
+const BUDGET_QUIZ_COUNT = 3;
+const BUDGET_QUIZ_REQUIRED = 2;
+const BUDGET_QUIZ_REWARD = 30;
 
 function hideAllScreens() {
     homeScreen.classList.add("hidden");
@@ -206,6 +213,7 @@ function showOverlay(label, text, desc = "") {
     goGameBtn.classList.add("hidden");
     nextStageBtn.classList.add("hidden");
     retryChallengeBtn.classList.add("hidden");
+    budgetQuizBtn.classList.add("hidden");
 }
 
 function hideOverlay() {
@@ -218,9 +226,11 @@ function shuffleArray(array) {
 }
 
 function setupQuizRound() {
+    quizMode = "start";
     quizIndex = 0;
     gameBudget = 60;
     spentBudget = 0;
+    budgetQuizLaunchApproved = false;
     clearedStages = [false, false, false];
 
     quizList = shuffleArray(quizPool)
@@ -231,11 +241,23 @@ function setupQuizRound() {
         }));
 }
 
+function setupBudgetQuiz() {
+    quizMode = "budget";
+    quizIndex = 0;
+    budgetQuizCorrectCount = 0;
+    quizList = shuffleArray(quizPool)
+        .slice(0, BUDGET_QUIZ_COUNT)
+        .map((quiz) => ({
+            ...quiz,
+            shuffledOptions: shuffleArray(quiz.options)
+        }));
+}
+
 function renderQuiz() {
     const quiz = quizList[quizIndex];
 
     quizNumber.textContent = `${quizIndex + 1} / ${quizList.length}`;
-    quizBudgetText.textContent = gameBudget;
+    quizBudgetText.textContent = quizMode === "budget" ? gameBudget - spentBudget : gameBudget;
     quizQuestion.textContent = quiz.q;
     quizChoices.innerHTML = "";
 
@@ -250,6 +272,19 @@ function renderQuiz() {
 function checkQuizAnswer(selectedAnswer) {
     const quiz = quizList[quizIndex];
     const correct = selectedAnswer === quiz.answer;
+
+    if (quizMode === "budget") {
+        if (correct) budgetQuizCorrectCount += 1;
+
+        showOverlay(
+            correct ? "정답" : "오답",
+            correct ? "정답!" : "오답!",
+            `올바른 답: ${quiz.answer}\n${quiz.reason}\n현재 ${quizIndex + 1}문제 중 ${budgetQuizCorrectCount}문제를 맞혔습니다.`
+        );
+        nextQuizBtn.textContent = "다음 문제";
+        nextQuizBtn.classList.remove("hidden");
+        return;
+    }
 
     if (correct) {
         gameBudget += 15;
@@ -273,12 +308,38 @@ function goNextQuiz() {
     quizIndex += 1;
 
     if (quizIndex >= quizList.length) {
+        if (quizMode === "budget") {
+            finishBudgetQuiz();
+            return;
+        }
         showFinalBudget();
         return;
     }
 
     hideOverlay();
     renderQuiz();
+}
+
+function finishBudgetQuiz() {
+    if (budgetQuizCorrectCount >= BUDGET_QUIZ_REQUIRED) {
+        budgetQuizLaunchApproved = true;
+        showOverlay(
+            "보충 퀴즈 성공",
+            "낙하 기회\n획득!",
+            `3문제 중 ${budgetQuizCorrectCount}문제를 맞혔습니다. 예산 대신 이번 낙하를 시도할 기회를 얻었습니다.`
+        );
+        closeWarningBtn.textContent = "게임으로 돌아가기";
+        closeWarningBtn.classList.remove("hidden");
+        return;
+    }
+
+    showOverlay(
+        "보충 퀴즈 재도전",
+        "예산 획득\n실패",
+        `3문제 중 ${budgetQuizCorrectCount}문제만 맞혔습니다. 2문제 이상 정답이어야 예산 30원을 받을 수 있습니다.`
+    );
+    budgetQuizBtn.textContent = "보충 퀴즈 다시 풀기";
+    budgetQuizBtn.classList.remove("hidden");
 }
 
 function showFinalBudget() {
@@ -403,6 +464,8 @@ function updateUI() {
 function setStage(index) {
     currentStage = index;
     launchCostCharged = false;
+    vxSlider.value = 0;
+    startXSlider.value = 50;
 
     stageBtns.forEach((btn) => {
         btn.classList.toggle("active", Number(btn.dataset.stage) === index);
@@ -422,24 +485,18 @@ function startCountdown() {
 
     const launchCost = totalCost();
     const remainingBudget = gameBudget - spentBudget;
+    const usesQuizLaunchPass = launchCost > remainingBudget && budgetQuizLaunchApproved;
 
-    if (remainingBudget < MIN_ITEM_COST) {
-        showBudgetUnavailable();
-        return;
-    }
-
-    if (launchCost > remainingBudget) {
-        showOverlay(
-            "예산 초과",
-            "출발 불가",
-            `이번 장비를 사용하려면 ${launchCost}원이 필요하지만, 남은 예산은 ${remainingBudget}원입니다.`
-        );
-        closeWarningBtn.classList.remove("hidden");
+    if (launchCost > remainingBudget && !usesQuizLaunchPass) {
+        showBudgetUnavailable(launchCost, remainingBudget);
         return;
     }
 
     // Every launch consumes the currently selected single-use protective gear.
-    spentBudget += launchCost;
+    if (!usesQuizLaunchPass) {
+        spentBudget += launchCost;
+    }
+    budgetQuizLaunchApproved = false;
     launchCostCharged = true;
     countdownActive = true;
     updateUI();
@@ -475,10 +532,6 @@ function startGame() {
     requestAnimationFrame(loop);
 }
 
-function hasNoAffordableItems() {
-    return gameBudget - spentBudget < MIN_ITEM_COST;
-}
-
 function hasValidGearSet(stage) {
     if (!stage.validGearSets) return true;
 
@@ -489,14 +542,25 @@ function hasValidGearSet(stage) {
     });
 }
 
-function showBudgetUnavailable() {
-    updateUI();
+function showBudgetUnavailable(requiredCost, remainingBudget) {
     showOverlay(
-        "예산 소진",
-        "더 이상 살 수 있는\n아이템이 없습니다",
-        `남은 예산이 ${MIN_ITEM_COST}원 미만이라 더 살 수 있는 아이템이 없습니다. 조금 더 공부하셔야겠네요! 퀴즈부터 다시 풀고 달걀 아저씨를 구해보세요.`
+        "예산 부족",
+        "예산이\n부족합니다",
+        `선택한 장비에는 ${requiredCost}원이 필요하지만 남은 예산은 ${remainingBudget}원입니다. 보충 퀴즈 3문제 중 2문제 이상을 맞히면 이번 낙하를 시도할 수 있습니다.`
     );
-    retryChallengeBtn.classList.remove("hidden");
+    budgetQuizBtn.textContent = "퀴즈 풀고 예산 얻기";
+    budgetQuizBtn.classList.remove("hidden");
+}
+
+function returnToGameFromBudgetQuiz() {
+    hideOverlay();
+    hideAllScreens();
+    gameScreen.classList.remove("hidden");
+    quizMode = "start";
+    closeWarningBtn.textContent = "확인";
+    updateUI();
+    resetEgg();
+    draw();
 }
 
 function loop(time) {
@@ -590,13 +654,9 @@ function finishLanding() {
             "실패: 과녁을 벗어났습니다.\n" +
             `착지 위치를 조절하세요. 현재 충격력은 약 ${impactForce.toFixed(1)}입니다.`;
 
-        if (hasNoAffordableItems()) {
-            showBudgetUnavailable();
-        } else {
-            launchCostCharged = false;
-            showOverlay("경고", "실패\n하였습니다", "과녁에 착지하지 못했습니다.");
-            closeWarningBtn.classList.remove("hidden");
-        }
+        launchCostCharged = false;
+        showOverlay("경고", "실패\n하였습니다", "과녁에 착지하지 못했습니다.");
+        closeWarningBtn.classList.remove("hidden");
         draw();
         return;
     }
@@ -607,17 +667,13 @@ function finishLanding() {
             "실패: 2스테이지에는 낙하산이 반드시 필요합니다.\n" +
             "가능한 조합: 낙하산 / 낙하산+스펀지 신발 / 낙하산+뽁뽁이";
 
-        if (hasNoAffordableItems()) {
-            showBudgetUnavailable();
-        } else {
-            launchCostCharged = false;
-            showOverlay(
-                "장비 조합 오류",
-                "다시\n준비하세요",
-                "2스테이지 정답 조합은 낙하산, 낙하산+스펀지 신발, 낙하산+뽁뽁이입니다."
-            );
-            closeWarningBtn.classList.remove("hidden");
-        }
+        launchCostCharged = false;
+        showOverlay(
+            "장비 조합 오류",
+            "다시\n준비하세요",
+            "2스테이지 정답 조합은 낙하산, 낙하산+스펀지 신발, 낙하산+뽁뽁이입니다."
+        );
+        closeWarningBtn.classList.remove("hidden");
         draw();
         return;
     }
@@ -630,13 +686,9 @@ function finishLanding() {
             `평균 충격력 ${impactForce.toFixed(1)} > 내구도 ${stage.durability}\n` +
             stage.hint;
 
-        if (hasNoAffordableItems()) {
-            showBudgetUnavailable();
-        } else {
-            launchCostCharged = false;
-            showOverlay("경고", "실패\n하였습니다", "충격력이 달걀 껍데기의 내구도를 넘었습니다.");
-            closeWarningBtn.classList.remove("hidden");
-        }
+        launchCostCharged = false;
+        showOverlay("경고", "실패\n하였습니다", "충격력이 달걀 껍데기의 내구도를 넘었습니다.");
+        closeWarningBtn.classList.remove("hidden");
         draw();
         return;
     }
@@ -682,10 +734,6 @@ function goNextStage() {
     }
 
     setStage(currentStage + 1);
-
-    if (hasNoAffordableItems()) {
-        showBudgetUnavailable();
-    }
 }
 
 function showEndingScreen() {
@@ -1001,10 +1049,29 @@ quizStartBtn.addEventListener("click", () => {
 nextQuizBtn.addEventListener("click", goNextQuiz);
 goGameBtn.addEventListener("click", enterGame);
 nextStageBtn.addEventListener("click", goNextStage);
-closeWarningBtn.addEventListener("click", hideOverlay);
+closeWarningBtn.addEventListener("click", () => {
+    if (quizMode === "budget" && !gameScreen.classList.contains("hidden")) {
+        hideOverlay();
+        return;
+    }
+
+    if (quizMode === "budget") {
+        returnToGameFromBudgetQuiz();
+        return;
+    }
+
+    hideOverlay();
+});
 retryChallengeBtn.addEventListener("click", () => {
     hideOverlay();
     setupQuizRound();
+    hideAllScreens();
+    quizScreen.classList.remove("hidden");
+    renderQuiz();
+});
+budgetQuizBtn.addEventListener("click", () => {
+    hideOverlay();
+    setupBudgetQuiz();
     hideAllScreens();
     quizScreen.classList.remove("hidden");
     renderQuiz();
@@ -1038,6 +1105,10 @@ startXSlider.addEventListener("input", () => {
 startBtn.addEventListener("click", startCountdown);
 
 resetBtn.addEventListener("click", () => {
+    gears.forEach((gear) => {
+        gear.checked = false;
+    });
+    launchCostCharged = false;
     updateUI();
     resetEgg();
     draw();
